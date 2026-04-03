@@ -1,8 +1,10 @@
 import json
+from pathlib import Path
 
 import anyio
 from dotenv import load_dotenv
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi.responses import HTMLResponse
 from google import genai
 from google.genai import types
 
@@ -21,9 +23,20 @@ _live_config = types.LiveConnectConfig(
     speech_config=types.SpeechConfig(
         voice_config=types.VoiceConfig(prebuilt_voice_config=types.PrebuiltVoiceConfig(voice_name="Kore")),
     ),
+    realtime_input_config=types.RealtimeInputConfig(
+        automatic_activity_detection=types.AutomaticActivityDetection(
+            start_of_speech_sensitivity=types.StartSensitivity.START_SENSITIVITY_HIGH,
+            end_of_speech_sensitivity=types.EndSensitivity.END_SENSITIVITY_HIGH,
+        ),
+    ),
     input_audio_transcription=types.AudioTranscriptionConfig(),
     output_audio_transcription=types.AudioTranscriptionConfig(),
 )
+
+
+@app.get("/", response_class=HTMLResponse)
+async def index():
+    return Path(__file__).parent.joinpath("static/index.html").read_text()
 
 
 @app.websocket("/ws/audio")
@@ -62,41 +75,42 @@ async def audio_proxy(ws: WebSocket):
 
             async def gemini_to_client():
                 try:
-                    async for response in session.receive():
-                        sc = response.server_content
-                        if sc is None:
-                            continue
+                    while True:
+                        async for response in session.receive():
+                            sc = response.server_content
+                            if sc is None:
+                                continue
 
-                        if sc.model_turn and sc.model_turn.parts:
-                            for part in sc.model_turn.parts:
-                                if part.inline_data and part.inline_data.data:
-                                    await ws.send_bytes(part.inline_data.data)
+                            if sc.model_turn and sc.model_turn.parts:
+                                for part in sc.model_turn.parts:
+                                    if part.inline_data and part.inline_data.data:
+                                        await ws.send_bytes(part.inline_data.data)
 
-                        if sc.input_transcription:
-                            await ws.send_text(
-                                json.dumps(
-                                    {
-                                        "type": "input_transcription",
-                                        "text": sc.input_transcription.text,
-                                    }
+                            if sc.input_transcription:
+                                await ws.send_text(
+                                    json.dumps(
+                                        {
+                                            "type": "input_transcription",
+                                            "text": sc.input_transcription.text,
+                                        }
+                                    )
                                 )
-                            )
 
-                        if sc.output_transcription:
-                            await ws.send_text(
-                                json.dumps(
-                                    {
-                                        "type": "output_transcription",
-                                        "text": sc.output_transcription.text,
-                                    }
+                            if sc.output_transcription:
+                                await ws.send_text(
+                                    json.dumps(
+                                        {
+                                            "type": "output_transcription",
+                                            "text": sc.output_transcription.text,
+                                        }
+                                    )
                                 )
-                            )
 
-                        if sc.turn_complete:
-                            await ws.send_text(TURN_COMPLETE_MSG)
+                            if sc.turn_complete:
+                                await ws.send_text(TURN_COMPLETE_MSG)
 
-                        if sc.interrupted:
-                            await ws.send_text(INTERRUPTED_MSG)
+                            if sc.interrupted:
+                                await ws.send_text(INTERRUPTED_MSG)
                 except WebSocketDisconnect:
                     pass
 
