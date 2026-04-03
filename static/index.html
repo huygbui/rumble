@@ -3,214 +3,118 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Gemini Voice Chat</title>
+<title>Voice Chat</title>
 <style>
-  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-  body {
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-    background: #0a0a0a; color: #e0e0e0;
-    display: flex; flex-direction: column; align-items: center;
-    min-height: 100vh; padding: 2rem;
-  }
-  h1 { font-size: 1.4rem; margin-bottom: 1.5rem; color: #fff; }
-  #status {
-    font-size: 0.85rem; color: #888; margin-bottom: 1.5rem;
-    min-height: 1.2em;
-  }
-  #mic-btn {
-    width: 96px; height: 96px; border-radius: 50%; border: none;
-    background: #222; color: #aaa; cursor: pointer;
-    font-size: 2.5rem; transition: all 0.2s;
-    display: flex; align-items: center; justify-content: center;
-  }
-  #mic-btn:hover { background: #333; }
-  #mic-btn.active { background: #d32f2f; color: #fff; box-shadow: 0 0 24px #d32f2f66; }
-  #transcript {
-    margin-top: 2rem; width: 100%; max-width: 600px;
-    display: flex; flex-direction: column; gap: 0.5rem;
-    max-height: 60vh; overflow-y: auto;
-  }
-  .msg {
-    padding: 0.6rem 1rem; border-radius: 12px; font-size: 0.9rem;
-    max-width: 80%; word-wrap: break-word; line-height: 1.4;
-  }
-  .msg.user { align-self: flex-end; background: #1a3a5c; color: #c8ddf0; }
-  .msg.model { align-self: flex-start; background: #1e1e1e; color: #d0d0d0; }
+  body { font-family: monospace; max-width: 640px; margin: 2rem auto; padding: 0 1rem; }
+  #log { white-space: pre-wrap; line-height: 1.6; }
+  button { display: block; margin: 0 auto 1rem; }
 </style>
 </head>
 <body>
-<h1>Gemini Voice Chat</h1>
-<div id="status">Click the mic to start</div>
-<button id="mic-btn">&#x1F3A4;</button>
-<div id="transcript"></div>
+<button id="btn">Start</button>
+<div id="log"></div>
 
 <script>
-const SAMPLE_RATE_IN = 16000;
-const SAMPLE_RATE_OUT = 24000;
-const micBtn = document.getElementById("mic-btn");
-const statusEl = document.getElementById("status");
-const transcriptEl = document.getElementById("transcript");
+const btn = document.getElementById("btn");
+const log = document.getElementById("log");
 
-let ws = null;
-let audioCtx = null;
-let micStream = null;
-let workletNode = null;
-let playbackCtx = null;
-let nextPlayTime = 0;
+let ws, audioCtx, micStream, workletNode, playbackCtx, nextPlayTime;
 
-function setStatus(msg) { statusEl.textContent = msg; }
-
-function addMessage(text, role) {
-  if (!text || !text.trim()) return;
-  const div = document.createElement("div");
-  div.className = `msg ${role}`;
-  div.textContent = text;
-  transcriptEl.appendChild(div);
-  transcriptEl.scrollTop = transcriptEl.scrollHeight;
-}
-
-// --- Audio capture via AudioWorklet ---
+function append(text) { log.textContent += text + "\n"; log.scrollIntoView(false); }
 
 const workletCode = `
-class PcmProcessor extends AudioWorkletProcessor {
-  constructor() {
-    super();
-    this.buffer = [];
-    // Send chunks of ~1024 samples (~64ms at 16kHz)
-    this.chunkSize = 1024;
-  }
+class P extends AudioWorkletProcessor {
+  constructor() { super(); this.buf = []; }
   process(inputs) {
-    const input = inputs[0];
-    if (!input || !input[0]) return true;
-    const samples = input[0];
-    // Downsample from AudioContext sampleRate to 16kHz
+    const s = inputs[0]?.[0];
+    if (!s) return true;
     const ratio = sampleRate / 16000;
-    for (let i = 0; i < samples.length; i += ratio) {
+    for (let i = 0; i < s.length; i += ratio) {
       const idx = Math.floor(i);
-      if (idx < samples.length) {
-        this.buffer.push(samples[idx]);
-      }
+      if (idx < s.length) this.buf.push(s[idx]);
     }
-    if (this.buffer.length >= this.chunkSize) {
-      const chunk = this.buffer.splice(0, this.chunkSize);
-      const pcm16 = new Int16Array(chunk.length);
+    if (this.buf.length >= 1024) {
+      const chunk = this.buf.splice(0, 1024);
+      const pcm = new Int16Array(chunk.length);
       for (let i = 0; i < chunk.length; i++) {
-        const s = Math.max(-1, Math.min(1, chunk[i]));
-        pcm16[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
+        const v = Math.max(-1, Math.min(1, chunk[i]));
+        pcm[i] = v < 0 ? v * 0x8000 : v * 0x7FFF;
       }
-      this.port.postMessage(pcm16.buffer, [pcm16.buffer]);
+      this.port.postMessage(pcm.buffer, [pcm.buffer]);
     }
     return true;
   }
 }
-registerProcessor("pcm-processor", PcmProcessor);
+registerProcessor("pcm-processor", P);
 `;
 
 async function startMic() {
   micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
   audioCtx = new AudioContext();
-  const blob = new Blob([workletCode], { type: "application/javascript" });
-  const url = URL.createObjectURL(blob);
+  const url = URL.createObjectURL(new Blob([workletCode], { type: "application/javascript" }));
   await audioCtx.audioWorklet.addModule(url);
   URL.revokeObjectURL(url);
-
-  const source = audioCtx.createMediaStreamSource(micStream);
+  const src = audioCtx.createMediaStreamSource(micStream);
   workletNode = new AudioWorkletNode(audioCtx, "pcm-processor");
-  workletNode.port.onmessage = (e) => {
-    if (ws && ws.readyState === WebSocket.OPEN) {
-      ws.send(e.data);
-    }
-  };
-  source.connect(workletNode);
-  // Don't connect to destination — we don't want to hear ourselves
+  workletNode.port.onmessage = (e) => { if (ws?.readyState === 1) ws.send(e.data); };
+  src.connect(workletNode);
 }
 
 function stopMic() {
-  if (workletNode) { workletNode.disconnect(); workletNode = null; }
-  if (audioCtx) { audioCtx.close(); audioCtx = null; }
-  if (micStream) { micStream.getTracks().forEach(t => t.stop()); micStream = null; }
+  workletNode?.disconnect(); audioCtx?.close(); micStream?.getTracks().forEach(t => t.stop());
+  workletNode = audioCtx = micStream = null;
 }
 
-// --- Audio playback ---
-
-function initPlayback() {
-  playbackCtx = new AudioContext({ sampleRate: SAMPLE_RATE_OUT });
-  nextPlayTime = 0;
-}
-
-function playPcm(pcmBytes) {
+function playPcm(bytes) {
   if (!playbackCtx) return;
-  const int16 = new Int16Array(pcmBytes);
-  const float32 = new Float32Array(int16.length);
-  for (let i = 0; i < int16.length; i++) {
-    float32[i] = int16[i] / 0x8000;
-  }
-  const buffer = playbackCtx.createBuffer(1, float32.length, SAMPLE_RATE_OUT);
-  buffer.getChannelData(0).set(float32);
-  const source = playbackCtx.createBufferSource();
-  source.buffer = buffer;
-  source.connect(playbackCtx.destination);
-  const now = playbackCtx.currentTime;
-  const startTime = Math.max(now, nextPlayTime);
-  source.start(startTime);
-  nextPlayTime = startTime + buffer.duration;
+  const int16 = new Int16Array(bytes);
+  const f32 = new Float32Array(int16.length);
+  for (let i = 0; i < int16.length; i++) f32[i] = int16[i] / 0x8000;
+  const buf = playbackCtx.createBuffer(1, f32.length, 24000);
+  buf.getChannelData(0).set(f32);
+  const src = playbackCtx.createBufferSource();
+  src.buffer = buf;
+  src.connect(playbackCtx.destination);
+  const t = Math.max(playbackCtx.currentTime, nextPlayTime);
+  src.start(t);
+  nextPlayTime = t + buf.duration;
 }
-
-// --- WebSocket ---
 
 function connect() {
   const proto = location.protocol === "https:" ? "wss:" : "ws:";
   ws = new WebSocket(`${proto}//${location.host}/ws/audio`);
   ws.binaryType = "arraybuffer";
-
-  ws.onopen = () => setStatus("Connected — speak now");
-  ws.onclose = () => setStatus("Disconnected");
-  ws.onerror = () => setStatus("Connection error");
-
+  ws.onopen = () => append("[connected]");
+  ws.onclose = () => append("[disconnected]");
+  ws.onerror = () => append("[error]");
   ws.onmessage = (e) => {
-    if (e.data instanceof ArrayBuffer) {
-      playPcm(e.data);
-    } else {
-      const msg = JSON.parse(e.data);
-      if (msg.type === "input_transcription" && msg.text) {
-        addMessage(msg.text, "user");
-      } else if (msg.type === "output_transcription" && msg.text) {
-        addMessage(msg.text, "model");
-      } else if (msg.type === "interrupted") {
-        // Stop queued playback on interruption
-        if (playbackCtx) { playbackCtx.close(); initPlayback(); }
-      } else if (msg.type === "error") {
-        setStatus(`Error: ${msg.message}`);
-      }
-    }
+    if (e.data instanceof ArrayBuffer) return playPcm(e.data);
+    const msg = JSON.parse(e.data);
+    if (msg.type === "input_transcription" && msg.text) append("you: " + msg.text);
+    else if (msg.type === "output_transcription" && msg.text) append("ai: " + msg.text);
+    else if (msg.type === "interrupted" && playbackCtx) { playbackCtx.close(); playbackCtx = new AudioContext({ sampleRate: 24000 }); nextPlayTime = 0; }
+    else if (msg.type === "error") append("[error] " + msg.message);
   };
 }
 
-// --- Toggle ---
-
 let active = false;
-
-micBtn.addEventListener("click", async () => {
+btn.onclick = async () => {
   if (!active) {
     try {
-      initPlayback();
+      playbackCtx = new AudioContext({ sampleRate: 24000 }); nextPlayTime = 0;
       await startMic();
       connect();
-      micBtn.classList.add("active");
+      btn.textContent = "Stop";
       active = true;
-      setStatus("Connecting...");
-    } catch (err) {
-      setStatus(`Mic error: ${err.message}`);
-    }
+    } catch (err) { append("[mic error] " + err.message); }
   } else {
     stopMic();
-    if (ws) ws.close();
-    if (playbackCtx) { playbackCtx.close(); playbackCtx = null; }
-    micBtn.classList.remove("active");
+    ws?.close();
+    playbackCtx?.close(); playbackCtx = null;
+    btn.textContent = "Start";
     active = false;
-    setStatus("Click the mic to start");
   }
-});
+};
 </script>
 </body>
 </html>
