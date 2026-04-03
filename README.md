@@ -1,4 +1,28 @@
-# Audio Streaming — Backend Spec
+# Rumble — AI Audio Service
+
+## Running Locally
+
+Requires Python 3.14+ and [uv](https://docs.astral.sh/uv/getting-started/installation/).
+
+```bash
+git clone git@github.com:huygbui/rumble.git
+cd rumble
+uv sync
+```
+
+Create a `.env` file with your Gemini API key:
+
+```
+GEMINI_API_KEY=your-key-here
+```
+
+Start the server:
+
+```bash
+uv run python main.py
+```
+
+The service runs at `http://localhost:8000`. A test UI is available at the root (`/`) — open it in a browser to test voice chat with your mic.
 
 ## Flow
 
