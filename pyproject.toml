@@ -8,5 +8,6 @@ dependencies = [
     "anyio>=4.13.0",
     "fastapi[standard]>=0.135.3",
     "google-genai>=1.70.0",
+    "python-dotenv>=1.2.2",
     "uvicorn>=0.42.0",
 ]

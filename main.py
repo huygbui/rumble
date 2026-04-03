@@ -1,20 +1,20 @@
 import json
-import os
 
 import anyio
-
+from dotenv import load_dotenv
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from google import genai
 from google.genai import types
 
+load_dotenv()
+
 app = FastAPI(title="Gemini Live Audio Proxy")
 
-GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
 MODEL = "gemini-3.1-flash-live-preview"
 TURN_COMPLETE_MSG = json.dumps({"type": "turn_complete"})
 INTERRUPTED_MSG = json.dumps({"type": "interrupted"})
 
-_client = genai.Client(api_key=GEMINI_API_KEY)
+_client = genai.Client()
 _live_config = types.LiveConnectConfig(
     response_modalities=[types.Modality.AUDIO],
     system_instruction=types.Content(parts=[types.Part(text="You are a helpful voice assistant. Be concise and natural.")]),
