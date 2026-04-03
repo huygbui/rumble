@@ -1,6 +1,7 @@
-import asyncio
 import json
 import os
+
+import anyio
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from google import genai
@@ -10,6 +11,19 @@ app = FastAPI(title="Gemini Live Audio Proxy")
 
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
 MODEL = "gemini-3.1-flash-live-preview"
+TURN_COMPLETE_MSG = json.dumps({"type": "turn_complete"})
+INTERRUPTED_MSG = json.dumps({"type": "interrupted"})
+
+_client = genai.Client(api_key=GEMINI_API_KEY)
+_live_config = types.LiveConnectConfig(
+    response_modalities=[types.Modality.AUDIO],
+    system_instruction=types.Content(parts=[types.Part(text="You are a helpful voice assistant. Be concise and natural.")]),
+    speech_config=types.SpeechConfig(
+        voice_config=types.VoiceConfig(prebuilt_voice_config=types.PrebuiltVoiceConfig(voice_name="Kore")),
+    ),
+    input_audio_transcription=types.AudioTranscriptionConfig(),
+    output_audio_transcription=types.AudioTranscriptionConfig(),
+)
 
 
 @app.websocket("/ws/audio")
@@ -24,23 +38,10 @@ async def audio_proxy(ws: WebSocket):
     """
     await ws.accept()
 
-    client = genai.Client(api_key=GEMINI_API_KEY)
-
-    config = types.LiveConnectConfig(
-        response_modalities=[types.Modality.AUDIO],
-        system_instruction=types.Content(parts=[types.Part(text="You are a helpful voice assistant. Be concise and natural.")]),
-        speech_config=types.SpeechConfig(
-            voice_config=types.VoiceConfig(prebuilt_voice_config=types.PrebuiltVoiceConfig(voice_name="Kore")),
-        ),
-        input_audio_transcription=types.AudioTranscriptionConfig(),
-        output_audio_transcription=types.AudioTranscriptionConfig(),
-    )
-
     try:
-        async with client.aio.live.connect(model=MODEL, config=config) as session:
+        async with _client.aio.live.connect(model=MODEL, config=_live_config) as session:
 
             async def client_to_gemini():
-                """Forward audio from WebSocket client to Gemini."""
                 try:
                     while True:
                         message = await ws.receive()
@@ -60,7 +61,6 @@ async def audio_proxy(ws: WebSocket):
                     pass
 
             async def gemini_to_client():
-                """Forward audio and events from Gemini back to WebSocket client."""
                 try:
                     async for response in session.receive():
                         sc = response.server_content
@@ -93,14 +93,21 @@ async def audio_proxy(ws: WebSocket):
                             )
 
                         if sc.turn_complete:
-                            await ws.send_text(json.dumps({"type": "turn_complete"}))
+                            await ws.send_text(TURN_COMPLETE_MSG)
 
                         if sc.interrupted:
-                            await ws.send_text(json.dumps({"type": "interrupted"}))
+                            await ws.send_text(INTERRUPTED_MSG)
                 except WebSocketDisconnect:
                     pass
 
-            await asyncio.gather(client_to_gemini(), gemini_to_client())
+            async with anyio.create_task_group() as tg:
+
+                async def run_then_cancel(func):
+                    await func()
+                    tg.cancel_scope.cancel()
+
+                tg.start_soon(run_then_cancel, client_to_gemini)
+                tg.start_soon(run_then_cancel, gemini_to_client)
 
     except Exception as e:
         try:
