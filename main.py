@@ -8,7 +8,7 @@ from google.genai import types
 
 load_dotenv()
 
-app = FastAPI(title="Gemini Live Audio Proxy")
+app = FastAPI(title="Gemini Live Audio")
 
 MODEL = "gemini-3.1-flash-live-preview"
 TURN_COMPLETE_MSG = json.dumps({"type": "turn_complete"})
