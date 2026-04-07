@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Login — Kids Voice</title>
+    <link rel="stylesheet" href="/src/style.css" />
+</head>
+<body>
+    <main class="card">
+        <h1>Sign in</h1>
+        <p style="color:#888;margin-top:-.5rem">Demo: parent@test.com / password</p>
+        <form id="loginForm">
+            <label>Email
+                <input id="email" type="email" required autocomplete="username" value="parent@test.com" />
+            </label>
+            <label>Password
+                <input id="password" type="password" required autocomplete="current-password" value="password" />
+            </label>
+            <button id="submitBtn" type="submit">Sign in</button>
+        </form>
+        <p id="error" class="error"></p>
+    </main>
+    <script type="module" src="/src/login.js"></script>
+</body>
+</html>

@@ -1,20 +1,43 @@
 import json
-from pathlib import Path
+import logging
+import os
 
 import anyio
+import jwt
 from dotenv import load_dotenv
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
-from fastapi.responses import HTMLResponse
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, status
+from fastapi.middleware.cors import CORSMiddleware
 from google import genai
 from google.genai import types
 
 load_dotenv()
 
-app = FastAPI(title="Gemini Live Audio")
+logger = logging.getLogger(__name__)
+logging.basicConfig(level=logging.INFO)
 
 MODEL = "gemini-3.1-flash-live-preview"
 TURN_COMPLETE_MSG = json.dumps({"type": "turn_complete"})
 INTERRUPTED_MSG = json.dumps({"type": "interrupted"})
+
+JWT_SECRET = os.environ["JWT_SECRET"]
+JWT_ISSUER = os.environ.get("JWT_ISSUER", "laravel")
+JWT_AUDIENCE = os.environ.get("JWT_AUDIENCE", "python-ai")
+ALLOWED_ORIGINS = [
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+]
+
+app = FastAPI(title="Gemini Live Audio")
+
+# CORS only matters for /health (HTTP). WebSockets are not subject to CORS,
+# but we explicitly check the Origin header on /ws/audio below as a defense.
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=ALLOWED_ORIGINS,
+    allow_credentials=False,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 _client = genai.Client()
 _live_config = types.LiveConnectConfig(
@@ -34,9 +57,20 @@ _live_config = types.LiveConnectConfig(
 )
 
 
-@app.get("/", response_class=HTMLResponse)
-async def index():
-    return Path(__file__).parent.joinpath("static/index.html").read_text()
+def _validate_ai_token(token: str) -> dict:
+    """
+    Self-contained validation of the ai_token minted by Laravel.
+    Raises jwt.PyJWTError on any failure (expired, bad signature, wrong
+    issuer/audience). The caller closes the WebSocket on exception.
+    """
+    return jwt.decode(
+        token,
+        JWT_SECRET,
+        algorithms=["HS256"],
+        issuer=JWT_ISSUER,
+        audience=JWT_AUDIENCE,
+        options={"require": ["exp", "iat", "sub", "iss", "aud"]},
+    )
 
 
 @app.websocket("/ws/audio")
@@ -44,11 +78,38 @@ async def audio_proxy(ws: WebSocket):
     """
     WebSocket endpoint for bidirectional audio streaming with Gemini Live.
 
-    Client sends: raw 16kHz 16-bit PCM mono audio bytes
-    Server sends:
-      - binary frames: raw 24kHz 16-bit PCM mono audio bytes from model
-      - text frames: JSON messages for transcriptions and turn events
+    Auth: ai_token JWT passed as ?token=... query param. Token is minted by
+    Laravel (HS256, 5-min TTL) and validated here against the shared secret.
+
+    Wire format:
+      Client -> Server: binary frames, raw 16kHz 16-bit PCM mono
+      Server -> Client:
+        - binary frames: raw 24kHz 16-bit PCM mono from the model
+        - text frames:   JSON {type, text} for transcripts and turn events
     """
+    # 1) Validate origin (defense in depth — WS isn't subject to CORS).
+    origin = ws.headers.get("origin")
+    if origin and origin not in ALLOWED_ORIGINS:
+        await ws.close(code=status.WS_1008_POLICY_VIOLATION, reason="origin not allowed")
+        return
+
+    # 2) Validate the ai_token.
+    token = ws.query_params.get("token")
+    if not token:
+        await ws.close(code=4401, reason="missing token")
+        return
+    try:
+        claims = _validate_ai_token(token)
+    except jwt.ExpiredSignatureError:
+        await ws.close(code=4401, reason="token expired")
+        return
+    except jwt.PyJWTError as e:
+        logger.warning("ai_token validation failed: %s", e)
+        await ws.close(code=4401, reason="invalid token")
+        return
+
+    user_id = claims["sub"]
+    logger.info("WS accepted for user sub=%s", user_id)
     await ws.accept()
 
     try:
@@ -87,6 +148,7 @@ async def audio_proxy(ws: WebSocket):
                                         await ws.send_bytes(part.inline_data.data)
 
                             if sc.input_transcription:
+                                logger.info("[%s] User said: %s", user_id, sc.input_transcription.text)
                                 await ws.send_text(
                                     json.dumps(
                                         {
@@ -97,6 +159,7 @@ async def audio_proxy(ws: WebSocket):
                                 )
 
                             if sc.output_transcription:
+                                logger.info("[%s] AI said: %s", user_id, sc.output_transcription.text)
                                 await ws.send_text(
                                     json.dumps(
                                         {
@@ -124,6 +187,7 @@ async def audio_proxy(ws: WebSocket):
                 tg.start_soon(run_then_cancel, gemini_to_client)
 
     except Exception as e:
+        logger.exception("audio_proxy error")
         try:
             await ws.send_text(json.dumps({"type": "error", "message": str(e)}))
             await ws.close(code=1011, reason=str(e)[:120])

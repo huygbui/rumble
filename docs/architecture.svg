@@ -1,0 +1,189 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 780" font-family="system-ui, -apple-system, Segoe UI, sans-serif">
+    <defs>
+        <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M 0 0 L 10 5 L 0 10 z" fill="#444"/>
+        </marker>
+        <marker id="arrowGreen" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M 0 0 L 10 5 L 0 10 z" fill="#2e7d32"/>
+        </marker>
+        <marker id="arrowBlue" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M 0 0 L 10 5 L 0 10 z" fill="#1565c0"/>
+        </marker>
+        <marker id="arrowOrange" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M 0 0 L 10 5 L 0 10 z" fill="#e65100"/>
+        </marker>
+    </defs>
+
+    <style>
+        .title    { font-size: 22px; font-weight: 700; fill: #222; }
+        .subtitle { font-size: 12px; fill: #777; }
+        .box      { fill: #ffffff; stroke: #444; stroke-width: 2; rx: 12; ry: 12; }
+        .box-fe   { fill: #e3f2fd; stroke: #1565c0; }
+        .box-lar  { fill: #ffe9d6; stroke: #e65100; }
+        .box-py   { fill: #e8f5e9; stroke: #2e7d32; }
+        .box-db   { fill: #f3e5f5; stroke: #6a1b9a; }
+        .box-ext  { fill: #fff3e0; stroke: #ef6c00; stroke-dasharray: 4 3; }
+        .label    { font-size: 14px; font-weight: 600; fill: #222; }
+        .label-sm { font-size: 11px; fill: #555; }
+        .port     { font-size: 11px; font-weight: 600; fill: #555; font-family: ui-monospace, Menlo, monospace; }
+        .step     { font-size: 12px; font-weight: 700; fill: #fff; }
+        .step-bg  { fill: #444; }
+        .arrow    { stroke: #444; stroke-width: 2; fill: none; }
+        .arrow-blue   { stroke: #1565c0; stroke-width: 2.5; fill: none; }
+        .arrow-orange { stroke: #e65100; stroke-width: 2.5; fill: none; }
+        .arrow-green  { stroke: #2e7d32; stroke-width: 2.5; fill: none; }
+        .arrow-purple { stroke: #6a1b9a; stroke-width: 2; fill: none; stroke-dasharray: 5 3; }
+        .annotate { font-size: 11px; fill: #444; }
+        .secret   { font-size: 11px; font-weight: 700; fill: #c62828; font-family: ui-monospace, Menlo, monospace; }
+    </style>
+
+    <!-- Title -->
+    <text x="600" y="36" text-anchor="middle" class="title">Kids Voice — Architecture</text>
+    <text x="600" y="56" text-anchor="middle" class="subtitle">3-tier: Frontend (login + push-to-talk) · Laravel (auth + ai_token) · Python (Gemini Live proxy)</text>
+
+    <!-- ============ FRONTEND ============ -->
+    <rect x="40"  y="120" width="240" height="200" class="box box-fe"/>
+    <text x="160" y="148" text-anchor="middle" class="label">Frontend</text>
+    <text x="160" y="166" text-anchor="middle" class="label-sm">Vite + vanilla JS</text>
+    <text x="160" y="184" text-anchor="middle" class="port">localhost:5173</text>
+
+    <line x1="60" y1="200" x2="260" y2="200" stroke="#1565c0" stroke-dasharray="2 2"/>
+
+    <text x="160" y="222" text-anchor="middle" class="label-sm">index.html — login form</text>
+    <text x="160" y="240" text-anchor="middle" class="label-sm">voice.html — push-to-talk</text>
+    <text x="160" y="262" text-anchor="middle" class="label-sm">localStorage:</text>
+    <text x="160" y="278" text-anchor="middle" class="port">access_token</text>
+    <text x="160" y="300" text-anchor="middle" class="label-sm">mic 16 kHz · play 24 kHz</text>
+
+    <!-- ============ LARAVEL ============ -->
+    <rect x="480" y="120" width="240" height="200" class="box box-lar"/>
+    <text x="600" y="148" text-anchor="middle" class="label">Laravel API</text>
+    <text x="600" y="166" text-anchor="middle" class="label-sm">Auth · CRUD · ai_token mint</text>
+    <text x="600" y="184" text-anchor="middle" class="port">localhost:8001</text>
+
+    <line x1="500" y1="200" x2="700" y2="200" stroke="#e65100" stroke-dasharray="2 2"/>
+
+    <text x="600" y="222" text-anchor="middle" class="label-sm">Passport (RSA) — user login</text>
+    <text x="600" y="240" text-anchor="middle" class="label-sm">php-jwt (HS256) — ai_token</text>
+    <text x="600" y="262" text-anchor="middle" class="port">POST /api/login</text>
+    <text x="600" y="278" text-anchor="middle" class="port">POST /api/voice/ai-token</text>
+    <text x="600" y="296" text-anchor="middle" class="port">GET  /api/me</text>
+
+    <!-- ============ PYTHON ============ -->
+    <rect x="920" y="120" width="240" height="200" class="box box-py"/>
+    <text x="1040" y="148" text-anchor="middle" class="label">Python AI API</text>
+    <text x="1040" y="166" text-anchor="middle" class="label-sm">FastAPI · Gemini Live</text>
+    <text x="1040" y="184" text-anchor="middle" class="port">localhost:8000</text>
+
+    <line x1="940" y1="200" x2="1140" y2="200" stroke="#2e7d32" stroke-dasharray="2 2"/>
+
+    <text x="1040" y="222" text-anchor="middle" class="label-sm">WS /ws/audio?token=…</text>
+    <text x="1040" y="240" text-anchor="middle" class="label-sm">self-validates JWT (HS256)</text>
+    <text x="1040" y="262" text-anchor="middle" class="label-sm">no DB · no Laravel calls</text>
+    <text x="1040" y="284" text-anchor="middle" class="label-sm">stateless · trust by signature</text>
+
+    <!-- ============ DATABASE ============ -->
+    <rect x="480" y="540" width="240" height="100" class="box box-db"/>
+    <text x="600" y="570" text-anchor="middle" class="label">SQLite</text>
+    <text x="600" y="592" text-anchor="middle" class="label-sm">users · oauth_* (Passport)</text>
+    <text x="600" y="612" text-anchor="middle" class="label-sm">only Laravel touches it</text>
+
+    <!-- ============ GEMINI ============ -->
+    <rect x="920" y="540" width="240" height="100" class="box box-ext"/>
+    <text x="1040" y="570" text-anchor="middle" class="label">Gemini Live API</text>
+    <text x="1040" y="592" text-anchor="middle" class="label-sm">gemini-3.1-flash-live-preview</text>
+    <text x="1040" y="612" text-anchor="middle" class="label-sm">audio in/out · transcripts</text>
+
+    <!-- ============ SHARED SECRET ============ -->
+    <rect x="480" y="380" width="240" height="60" rx="8" ry="8" fill="#fff3e0" stroke="#c62828" stroke-width="2" stroke-dasharray="6 4"/>
+    <text x="600" y="402" text-anchor="middle" class="label" fill="#c62828">SHARED SECRET</text>
+    <text x="600" y="422" text-anchor="middle" class="secret">JWT_SECRET (HS256)</text>
+
+    <!-- secret leaks: dotted lines to Laravel and Python -->
+    <line x1="600" y1="380" x2="600" y2="320" class="arrow-purple"/>
+    <line x1="720" y1="395" x2="920" y2="320" class="arrow-purple"/>
+
+    <!-- ========================= ARROWS / FLOW ========================= -->
+
+    <!-- ① login: FE -> Laravel -->
+    <line x1="280" y1="220" x2="478" y2="220" class="arrow-blue" marker-end="url(#arrowBlue)"/>
+    <circle cx="295" cy="208" r="11" class="step-bg"/>
+    <text x="295" y="212" text-anchor="middle" class="step">1</text>
+    <text x="380" y="210" text-anchor="middle" class="annotate" fill="#1565c0">POST /api/login {email,password}</text>
+
+    <!-- ② Laravel -> FE: passport token -->
+    <line x1="478" y1="250" x2="280" y2="250" class="arrow-orange" marker-end="url(#arrowOrange)"/>
+    <circle cx="463" cy="262" r="11" class="step-bg"/>
+    <text x="463" y="266" text-anchor="middle" class="step">2</text>
+    <text x="380" y="270" text-anchor="middle" class="annotate" fill="#e65100">access_token (Passport, RSA)</text>
+
+    <!-- ③ ai-token request -->
+    <line x1="280" y1="290" x2="478" y2="290" class="arrow-blue" marker-end="url(#arrowBlue)"/>
+    <circle cx="295" cy="302" r="11" class="step-bg"/>
+    <text x="295" y="306" text-anchor="middle" class="step">3</text>
+    <text x="380" y="307" text-anchor="middle" class="annotate" fill="#1565c0">POST /api/voice/ai-token (Bearer)</text>
+
+    <!-- ④ Laravel mints ai-token -->
+    <path d="M 478 320 Q 380 360 280 320" class="arrow-orange" marker-end="url(#arrowOrange)" fill="none"/>
+    <circle cx="380" cy="350" r="11" class="step-bg"/>
+    <text x="380" y="354" text-anchor="middle" class="step">4</text>
+    <text x="380" y="372" text-anchor="middle" class="annotate" fill="#e65100">ai_token (HS256, 5 min, single-use)</text>
+
+    <!-- ⑤ FE -> Python WS -->
+    <path d="M 280 180 Q 660 60 920 180" class="arrow-blue" marker-end="url(#arrowBlue)" fill="none"/>
+    <circle cx="600" cy="92" r="11" class="step-bg"/>
+    <text x="600" y="96" text-anchor="middle" class="step">5</text>
+    <text x="600" y="78" text-anchor="middle" class="annotate" fill="#1565c0">WS /ws/audio?token=ai_token  +  binary PCM 16 kHz frames</text>
+
+    <!-- ⑥ Python -> FE audio -->
+    <path d="M 920 245 Q 660 360 280 245" class="arrow-green" marker-end="url(#arrowGreen)" fill="none"/>
+    <circle cx="600" cy="338" r="11" class="step-bg"/>
+    <text x="600" y="342" text-anchor="middle" class="step">6</text>
+    <text x="800" y="334" text-anchor="middle" class="annotate" fill="#2e7d32">PCM 24 kHz audio · transcripts · turn events</text>
+
+    <!-- Laravel <-> SQLite -->
+    <line x1="600" y1="320" x2="600" y2="380" stroke="#6a1b9a" stroke-width="2"/>
+    <line x1="600" y1="440" x2="600" y2="540" stroke="#6a1b9a" stroke-width="2" marker-end="url(#arrow)"/>
+    <text x="615" y="490" class="annotate" fill="#6a1b9a">read/write users + tokens</text>
+
+    <!-- Python <-> Gemini -->
+    <line x1="1040" y1="320" x2="1040" y2="540" class="arrow-green" marker-end="url(#arrowGreen)"/>
+    <line x1="1060" y1="540" x2="1060" y2="320" class="arrow-green" marker-end="url(#arrowGreen)"/>
+    <text x="1175" y="430" text-anchor="middle" class="annotate" fill="#2e7d32">audio</text>
+    <text x="1175" y="446" text-anchor="middle" class="annotate" fill="#2e7d32">streaming</text>
+
+    <!-- "no coupling" between Laravel and Python -->
+    <text x="820" y="180" text-anchor="middle" class="annotate" fill="#888" font-style="italic">no direct coupling</text>
+    <line x1="720" y1="170" x2="920" y2="170" stroke="#bbb" stroke-width="1.5" stroke-dasharray="3 3"/>
+
+    <!-- ========================= LEGEND ========================= -->
+    <rect x="40" y="540" width="380" height="180" rx="8" ry="8" fill="#fafafa" stroke="#ccc"/>
+    <text x="55" y="565" class="label">Legend</text>
+
+    <line x1="55"  y1="585" x2="95"  y2="585" class="arrow-blue" marker-end="url(#arrowBlue)"/>
+    <text x="105" y="589" class="annotate">Browser → server (request)</text>
+
+    <line x1="55"  y1="605" x2="95"  y2="605" class="arrow-orange" marker-end="url(#arrowOrange)"/>
+    <text x="105" y="609" class="annotate">Laravel response</text>
+
+    <line x1="55"  y1="625" x2="95"  y2="625" class="arrow-green" marker-end="url(#arrowGreen)"/>
+    <text x="105" y="629" class="annotate">Audio / Gemini stream</text>
+
+    <line x1="55"  y1="645" x2="95"  y2="645" class="arrow-purple"/>
+    <text x="105" y="649" class="annotate">Shared secret (config)</text>
+
+    <text x="55" y="678" class="label-sm" font-weight="700">Trust model</text>
+    <text x="55" y="694" class="annotate">• Passport token: long-lived, full account scope</text>
+    <text x="55" y="709" class="annotate">• ai_token: 5 min, single-purpose, "talk to AI" only</text>
+
+    <!-- token comparison panel -->
+    <rect x="780" y="380" width="380" height="120" rx="8" ry="8" fill="#fafafa" stroke="#ccc"/>
+    <text x="795" y="402" class="label">Two tokens, two jobs</text>
+
+    <text x="795" y="424" class="label-sm" font-weight="700" fill="#e65100">Passport access_token (RSA)</text>
+    <text x="795" y="440" class="annotate">• Issued by Laravel on /api/login</text>
+    <text x="795" y="455" class="annotate">• Used for /api/me, /api/logout, /api/voice/ai-token</text>
+
+    <text x="795" y="476" class="label-sm" font-weight="700" fill="#2e7d32">ai_token (HS256, 5 min)</text>
+    <text x="795" y="492" class="annotate">• Minted on demand · validates offline in Python</text>
+</svg>
