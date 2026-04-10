@@ -21,25 +21,25 @@ MODEL = "gemini-3.1-flash-live-preview"
 TURN_COMPLETE_MSG = json.dumps({"type": "turn_complete"})
 INTERRUPTED_MSG = json.dumps({"type": "interrupted"})
 
-JWT_SECRET = os.environ["JWT_SECRET"]
-JWT_ISSUER = os.environ.get("JWT_ISSUER", "laravel")
-JWT_AUDIENCE = os.environ.get("JWT_AUDIENCE", "python-ai")
-ALLOWED_ORIGINS = [
-    "http://localhost:5173",
-    "http://127.0.0.1:5173",
-]
+# JWT_SECRET = os.environ["JWT_SECRET"]
+# JWT_ISSUER = os.environ.get("JWT_ISSUER", "laravel")
+# JWT_AUDIENCE = os.environ.get("JWT_AUDIENCE", "python-ai")
+# ALLOWED_ORIGINS = [
+#     "http://localhost:5173",
+#     "http://127.0.0.1:5173",
+# ]
 
 app = FastAPI(title="Gemini Live Audio")
 
-# CORS only matters for /health (HTTP). WebSockets are not subject to CORS,
-# but we explicitly check the Origin header on /ws/audio below as a defense.
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=ALLOWED_ORIGINS,
-    allow_credentials=False,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+# # CORS only matters for /health (HTTP). WebSockets are not subject to CORS,
+# # but we explicitly check the Origin header on /ws/audio below as a defense.
+# app.add_middleware(
+#     CORSMiddleware,
+#     allow_origins=ALLOWED_ORIGINS,
+#     allow_credentials=False,
+#     allow_methods=["*"],
+#     allow_headers=["*"],
+# )
 
 _client = genai.Client()
 _live_config = types.LiveConnectConfig(
@@ -86,20 +86,20 @@ def _encode_output_audio(
     raise RuntimeError(f"unsupported output codec: {output_codec}")
 
 
-def _validate_ai_token(token: str) -> dict:
-    """
-    Self-contained validation of the ai_token minted by Laravel.
-    Raises jwt.PyJWTError on any failure (expired, bad signature, wrong
-    issuer/audience). The caller closes the WebSocket on exception.
-    """
-    return jwt.decode(
-        token,
-        JWT_SECRET,
-        algorithms=["HS256"],
-        issuer=JWT_ISSUER,
-        audience=JWT_AUDIENCE,
-        options={"require": ["exp", "iat", "sub", "iss", "aud"]},
-    )
+# def _validate_ai_token(token: str) -> dict:
+#     """
+#     Self-contained validation of the ai_token minted by Laravel.
+#     Raises jwt.PyJWTError on any failure (expired, bad signature, wrong
+#     issuer/audience). The caller closes the WebSocket on exception.
+#     """
+#     return jwt.decode(
+#         token,
+#         JWT_SECRET,
+#         algorithms=["HS256"],
+#         issuer=JWT_ISSUER,
+#         audience=JWT_AUDIENCE,
+#         options={"require": ["exp", "iat", "sub", "iss", "aud"]},
+#     )
 
 
 @app.websocket("/ws/audio")
