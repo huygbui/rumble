@@ -116,29 +116,29 @@ async def audio_proxy(ws: WebSocket):
         - binary frames: raw 24kHz 16-bit PCM mono from the model
         - text frames:   JSON {type, text} for transcripts and turn events
     """
-    # 1) Validate origin (defense in depth — WS isn't subject to CORS).
-    origin = ws.headers.get("origin")
-    if origin and origin not in ALLOWED_ORIGINS:
-        await ws.close(code=status.WS_1008_POLICY_VIOLATION, reason="origin not allowed")
-        return
+    # # 1) Validate origin (defense in depth — WS isn't subject to CORS).
+    # origin = ws.headers.get("origin")
+    # if origin and origin not in ALLOWED_ORIGINS:
+    #     await ws.close(code=status.WS_1008_POLICY_VIOLATION, reason="origin not allowed")
+    #     return
 
-    # 2) Validate the ai_token.
-    token = ws.query_params.get("token")
-    if not token:
-        await ws.close(code=4401, reason="missing token")
-        return
-    try:
-        claims = _validate_ai_token(token)
-    except jwt.ExpiredSignatureError:
-        await ws.close(code=4401, reason="token expired")
-        return
-    except jwt.PyJWTError as e:
-        logger.warning("ai_token validation failed: %s", e)
-        await ws.close(code=4401, reason="invalid token")
-        return
+    # # 2) Validate the ai_token.
+    # token = ws.query_params.get("token")
+    # if not token:
+    #     await ws.close(code=4401, reason="missing token")
+    #     return
+    # try:
+    #     claims = _validate_ai_token(token)
+    # except jwt.ExpiredSignatureError:
+    #     await ws.close(code=4401, reason="token expired")
+    #     return
+    # except jwt.PyJWTError as e:
+    #     logger.warning("ai_token validation failed: %s", e)
+    #     await ws.close(code=4401, reason="invalid token")
+    #     return
 
-    user_id = claims["sub"]
-    logger.info("WS accepted for user sub=%s", user_id)
+    # user_id = claims["sub"]
+    # logger.info("WS accepted for user sub=%s", user_id)
     await ws.accept()
 
     try:
