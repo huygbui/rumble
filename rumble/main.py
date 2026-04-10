@@ -10,6 +10,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from google import genai
 from google.genai import types
 
+from converter import OpusPacketDecoder, OpusPacketEncoder
+
 load_dotenv()
 
 logger = logging.getLogger(__name__)
@@ -55,6 +57,33 @@ _live_config = types.LiveConnectConfig(
     input_audio_transcription=types.AudioTranscriptionConfig(),
     output_audio_transcription=types.AudioTranscriptionConfig(),
 )
+
+
+def _decode_input_audio(
+        frame_data: bytes,
+        input_codec: str,
+        opus_decoder: OpusPacketDecoder | None,
+) -> bytes:
+    if input_codec == "pcm" or input_codec is None:
+        return frame_data
+    if input_codec == "opus":
+        if opus_decoder is None:
+            raise RuntimeError("Opus decoder is not initialized")
+        return opus_decoder.decode_packet(frame_data)
+    raise RuntimeError(f"unsupported input codec: {input_codec}")
+
+def _encode_output_audio(
+        pcm_data: bytes,
+        output_codec: str,
+        opus_encoder: OpusPacketEncoder | None,
+) -> list[bytes]:
+    if output_codec == "pcm" or output_codec is None:
+        return [pcm_data] if pcm_data else []
+    if output_codec == "opus":
+        if opus_encoder is None:
+            raise RuntimeError("Opus encoder is not initialized")
+        return opus_encoder.encode_chunk(pcm_data)
+    raise RuntimeError(f"unsupported output codec: {output_codec}")
 
 
 def _validate_ai_token(token: str) -> dict:
@@ -113,6 +142,15 @@ async def audio_proxy(ws: WebSocket):
     await ws.accept()
 
     try:
+        input_codec = ws.query_params.get("input_codec", "pcm").lower()
+        output_codec = ws.query_params.get("output_codec", "pcm").lower()
+        if input_codec not in ["pcm", "opus"]:
+            raise RuntimeError(f"unsupported input codec: {input_codec}") 
+        if output_codec not in {"pcm", "opus"}:
+            raise RuntimeError(f"unsupported output codec: {output_codec}")
+        opus_decoder = OpusPacketDecoder() if input_codec == "opus" else None
+        opus_encoder = OpusPacketEncoder() if output_codec == "opus" else None
+
         async with _client.aio.live.connect(model=MODEL, config=_live_config) as session:
 
             async def client_to_gemini():
@@ -120,7 +158,15 @@ async def audio_proxy(ws: WebSocket):
                     while True:
                         message = await ws.receive()
                         if message.get("bytes"):
-                            pcm_data = message["bytes"]
+                            frame_data = message["bytes"]
+                            try:
+                                pcm_data = _decode_input_audio(frame_data, input_codec, opus_decoder)
+                            except Exception as e:
+                                logger.warning("input audio decode error (skipping frame): %s", e)
+                                continue
+                            
+                            if not pcm_data:
+                                continue
                             await session.send_realtime_input(
                                 audio=types.Blob(
                                     data=pcm_data,
@@ -145,7 +191,13 @@ async def audio_proxy(ws: WebSocket):
                             if sc.model_turn and sc.model_turn.parts:
                                 for part in sc.model_turn.parts:
                                     if part.inline_data and part.inline_data.data:
-                                        await ws.send_bytes(part.inline_data.data)
+                                        output_frames = _encode_output_audio(
+                                            part.inline_data.data,
+                                            output_codec,
+                                            opus_encoder
+                                        )
+                                        for output_frame in output_frames:
+                                            await ws.send_bytes(output_frame)
 
                             if sc.input_transcription:
                                 logger.info("[%s] User said: %s", user_id, sc.input_transcription.text)
