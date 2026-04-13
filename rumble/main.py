@@ -139,6 +139,8 @@ async def audio_proxy(ws: WebSocket):
 
     # user_id = claims["sub"]
     # logger.info("WS accepted for user sub=%s", user_id)
+
+    user_id = "You" # TODO: change later
     await ws.accept()
 
     try:
