@@ -144,7 +144,7 @@ async def audio_proxy(ws: WebSocket):
     try:
         input_codec = ws.query_params.get("input_codec", "pcm").lower()
         output_codec = ws.query_params.get("output_codec", "pcm").lower()
-        if input_codec not in ["pcm", "opus"]:
+        if input_codec not in {"pcm", "opus"}:
             raise RuntimeError(f"unsupported input codec: {input_codec}") 
         if output_codec not in {"pcm", "opus"}:
             raise RuntimeError(f"unsupported output codec: {output_codec}")

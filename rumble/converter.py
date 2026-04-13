@@ -1,6 +1,6 @@
 DEFAULT_SAMPLE_RATE = 16000
 DEFAULT_CHANNELS = 1
-DEFAULT_FRAME_DURATION_MS = 20
+DEFAULT_MAX_FRAME_DURATION_MS = 60
 DEFAULT_OUTPUT_SAMPLE_RATE = 24000
 DEFAULT_OUTPUT_FRAME_DURATION_MS = 20
 
@@ -20,13 +20,13 @@ class OpusPacketDecoder:
         self,
         sample_rate: int = DEFAULT_SAMPLE_RATE,
         channels: int = DEFAULT_CHANNELS,
-        frame_duration_ms: int = DEFAULT_FRAME_DURATION_MS,
+        max_frame_duration_ms: int = DEFAULT_MAX_FRAME_DURATION_MS,
     ) -> None:
         opuslib = _load_opuslib()
         self.sample_rate = sample_rate
         self.channels = channels
-        self.frame_duration_ms = frame_duration_ms
-        self.frame_size = (sample_rate * frame_duration_ms) // 1000
+        self.frame_duration_ms = max_frame_duration_ms
+        self.max_frame_size = (sample_rate * max_frame_duration_ms) // 1000
         self._opuslib = opuslib
         self._decoder = opuslib.Decoder(sample_rate, channels)
 
@@ -34,7 +34,7 @@ class OpusPacketDecoder:
         if not frame:
             return b""
         try:
-            return self._decoder.decode(frame, self.frame_size)
+            return self._decoder.decode(frame, self.max_frame_size)
         except self._opuslib.OpusError as e:
             raise RuntimeError(f"opus decode failed: {e}") from e
 
