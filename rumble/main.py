@@ -15,7 +15,7 @@ from converter import OpusPacketDecoder, OpusPacketEncoder
 load_dotenv()
 
 logger = logging.getLogger(__name__)
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(level=logging.DEBUG)
 
 MODEL = "gemini-3.1-flash-live-preview"
 TURN_COMPLETE_MSG = json.dumps({"type": "turn_complete"})
@@ -159,16 +159,20 @@ async def audio_proxy(ws: WebSocket):
                 try:
                     while True:
                         message = await ws.receive()
+                        if message.get("types") == "websocket.disconnect":
+                            break
                         if message.get("bytes"):
                             frame_data = message["bytes"]
+                            logger.debug("[rx] binary frame: codec=%s size=%d bytes hex_head=%s", input_codec, len(frame_data), frame_data[:8].hex())
                             try:
                                 pcm_data = _decode_input_audio(frame_data, input_codec, opus_decoder)
                             except Exception as e:
                                 logger.warning("input audio decode error (skipping frame): %s", e)
                                 continue
-                            
+
                             if not pcm_data:
                                 continue
+                            logger.debug("[tx->gemini] audio packet: pcm_bytes=%d", len(pcm_data))
                             await session.send_realtime_input(
                                 audio=types.Blob(
                                     data=pcm_data,
@@ -176,8 +180,16 @@ async def audio_proxy(ws: WebSocket):
                                 )
                             )
                         elif message.get("text"):
-                            payload = json.loads(message["text"])
+                            raw_text = message["text"]
+                            logger.debug("[rx] text message: %s", raw_text[:200])
+                            try:
+                                payload = json.loads(raw_text)
+                            except json.JSONDecodeError as e:
+                                logger.warning("invalid client JSON payload: %s", e)
+                                continue
+
                             if "text" in payload:
+                                logger.debug("[tx->gemini] text input: %s", payload["text"][:200])
                                 await session.send_realtime_input(text=payload["text"])
                 except WebSocketDisconnect:
                     pass
@@ -190,15 +202,25 @@ async def audio_proxy(ws: WebSocket):
                             if sc is None:
                                 continue
 
+                            logger.debug(
+                                "[rx<-gemini] server_content: turn_complete=%s interrupted=%s has_model_turn=%s",
+                                getattr(sc, "turn_complete", False),
+                                getattr(sc, "interrupted", False),
+                                sc.model_turn is not None,
+                            )
+
                             if sc.model_turn and sc.model_turn.parts:
                                 for part in sc.model_turn.parts:
                                     if part.inline_data and part.inline_data.data:
+                                        pcm_bytes = len(part.inline_data.data)
+                                        logger.debug("[rx<-gemini] audio part: pcm_bytes=%d mime=%s", pcm_bytes, part.inline_data.mime_type)
                                         output_frames = _encode_output_audio(
                                             part.inline_data.data,
                                             output_codec,
                                             opus_encoder
                                         )
                                         for output_frame in output_frames:
+                                            logger.debug("[tx->client] audio frame: codec=%s size=%d bytes", output_codec, len(output_frame))
                                             await ws.send_bytes(output_frame)
 
                             if sc.input_transcription:
@@ -224,9 +246,11 @@ async def audio_proxy(ws: WebSocket):
                                 )
 
                             if sc.turn_complete:
+                                logger.debug("[tx->client] turn_complete")
                                 await ws.send_text(TURN_COMPLETE_MSG)
 
                             if sc.interrupted:
+                                logger.debug("[tx->client] interrupted")
                                 await ws.send_text(INTERRUPTED_MSG)
                 except WebSocketDisconnect:
                     pass
